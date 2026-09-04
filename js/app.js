@@ -248,25 +248,57 @@
   }
 
   /* Two-tone highlighting in the review panel: the whole sentence sits on its
-     own soft ground (css .m-txt), and that row's technology terms pop in a
-     second colour. The term patterns are baked from the study's own lexicon
-     (data/termrx.json): ci = case-insensitive phrases, cs = case-sensitive
-     abbreviations. */
+     own soft ground (css .m-txt), and EVERY technology term in it pops in a
+     second colour, across ALL families at once: a battery maker's sentence
+     naming drones, robots and AI gets all three marked, not only the family
+     of the row it appears under. The term patterns are baked from the
+     study's own lexicon (data/termrx.json): ci = case-insensitive phrases,
+     cs = case-sensitive abbreviations. Matching is position-based on the raw
+     text and the LONGEST span wins an overlap, so "Internet of Things" is
+     one IoT mark, never a bare "Internet". */
   const ESCH = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
-  function hlParts(escaped, rx) {
-    return escaped.split(/(<mark class="kw">[\s\S]*?<\/mark>)/).map(seg =>
-      seg.startsWith('<mark') ? seg
-        : seg.replace(rx, m => `<mark class="kw">${m}</mark>`)).join('');
+  let TERM_RXS = null;
+  function termRegexes() {
+    if (TERM_RXS) return TERM_RXS;
+    TERM_RXS = [];
+    for (const fam in (D.termrx || {})) {
+      const t = D.termrx[fam];
+      // ci patterns are often stems ("cyber[\s-]?secur"); extend the match
+      // to the word's end so a mark never cuts a word in half, and anchor
+      // its START on a word boundary so "e commerce" can never light up the
+      // tail of "the Commerce" (display-only strictness; the measurement
+      // keeps the lexicon's own patterns)
+      try { if (t.ci) TERM_RXS.push(new RegExp('\\b(?:' + t.ci + ')[A-Za-z]*', 'gi')); } catch (e) {}
+      try { if (t.cs) TERM_RXS.push(new RegExp(t.cs, 'g')); } catch (e) {}
+    }
+    return TERM_RXS;
   }
-  function hlFam(s, fam) {
-    const t = (D.termrx || {})[fam] || {};
-    let out = ESCH(s);
-    // ci patterns are often stems ("cyber[\s-]?secur"); extend the match to
-    // the word's end so the mark never cuts a word in half
-    try { if (t.ci) out = hlParts(out, new RegExp('(?:' + t.ci + ')[A-Za-z]*', 'gi')); } catch (e) {}
-    try { if (t.cs) out = hlParts(out, new RegExp(t.cs, 'g')); } catch (e) {}
-    return out;
+  function hlAll(s) {
+    const text = String(s);
+    const spans = [];
+    for (const rx of termRegexes()) {
+      rx.lastIndex = 0;
+      let m;
+      while ((m = rx.exec(text)) !== null) {
+        if (m[0].length) spans.push([m.index, m.index + m[0].length]);
+        else rx.lastIndex += 1;
+      }
+    }
+    // longest span wins any overlap; survivors are then drawn left to right
+    spans.sort((a, b) => (b[1] - b[0]) - (a[1] - a[0]));
+    const keep = [];
+    for (const sp of spans) {
+      if (!keep.some(k => sp[0] < k[1] && k[0] < sp[1])) keep.push(sp);
+    }
+    keep.sort((a, b) => a[0] - b[0]);
+    let out = '', pos = 0;
+    for (const [a, b] of keep) {
+      out += ESCH(text.slice(pos, a)) +
+        `<mark class="kw">${ESCH(text.slice(a, b))}</mark>`;
+      pos = b;
+    }
+    return out + ESCH(text.slice(pos));
   }
 
   /* Verified scroll-to-text anchors, one JSON per industry, loaded lazily so
@@ -320,7 +352,7 @@
         <div class="modal-body">` +
       (rows.length ? rows.map(([fam, s]) => {
         const anch = D.anchors && D.anchors[`s:${cik}:${fy}:${fam}`];
-        return `<div class="m-sent"><div class="m-txt">${hlFam(s, fam)}</div>
+        return `<div class="m-sent"><div class="m-txt">${hlAll(s)}</div>
           <div class="m-foot"><span>${D.inventory.labels[fam] || fam} · first mention in this filing</span>
           <a target="_blank" rel="noopener" href="${docUrl}${anch ? anch.f : ''}">
             open at this sentence${anch ? '' : ' (top of document)'} ↗</a></div></div>`;
