@@ -64,10 +64,12 @@
   const D = {};
 
   // ---------------------------------------------------------------- routing
-  function show(view) {
+  function show(view, updateHash = true) {
     $$('#nav button').forEach(b => b.classList.toggle('on', b.dataset.view === view));
     $$('.view').forEach(v => { v.hidden = v.id !== 'view-' + view; });
-    location.hash = view;
+    // entering the site keeps a clean URL: the hash is only written on
+    // navigation, or when the visitor already arrived with one
+    if (updateHash && (location.hash || view !== 'filings')) location.hash = view;
     window.scrollTo({ top: 0 });
   }
   $('#nav').addEventListener('click', (e) => {
@@ -157,13 +159,13 @@
       rows.map(r => {
         const lag = r.construction_lag_years;
         const lagTxt = (lag === null || lag === undefined)
-          ? (r.construction_never_entered ? '<span class="pill" style="color:var(--risk)">never</span>' : '—')
+          ? (r.construction_never_entered ? '<span class="pill" style="color:var(--risk)">never</span>' : '·')
           : lag <= 0 ? '<span class="pill yes">with leader</span>'
           : (r.leader_left_censored ? '≥' : '') + lag + ' yr';
         return `<tr><td>${D.lag.labels[r.family]}</td>` +
           `<td>${(r.leader_industry || '').split(', ').map(i => SHORT[i] || i).join(', ')}</td>` +
           `<td class="num">${r.leader_entry}</td>` +
-          `<td class="num">${r.construction_entry || '—'}</td>` +
+          `<td class="num">${r.construction_entry || '·'}</td>` +
           `<td class="num">${lagTxt}</td></tr>`;
       }).join('') + '</tbody>';
   }
@@ -205,12 +207,12 @@
         const fr = r && r.risk_first !== null && r.risk_first !== undefined
           ? (r.risk_first ? '<span class="pill" style="color:var(--risk)">risk-first</span>'
                           : '<span class="pill yes">capability-first</span>')
-          : '—';
+          : '·';
         const focal = i === 'Construction';
         return `<tr${focal ? ' style="font-weight:650"' : ''}>` +
           `<td><span class="seg-dot" style="background:${css(IND_COLOR[i])}"></span>${SHORT[i]}</td>` +
-          `<td class="num">${e.first_any_mention || '—'}</td>` +
-          `<td class="num">${e.entry_headline || '—'}</td>` +
+          `<td class="num">${e.first_any_mention || '·'}</td>` +
+          `<td class="num">${e.entry_headline || '·'}</td>` +
           `<td class="num">${e.peak_pct ? fmtPct(e.peak_pct, 1) : '0%'}</td>` +
           `<td class="num">${fr}</td></tr>`;
       }).join('') + '</tbody>';
@@ -243,6 +245,28 @@
         .then(r => r.ok ? r.json() : {}).catch(() => ({}));
     }
     return sentCache[ind];
+  }
+
+  /* Two-tone highlighting in the review panel: the whole sentence sits on its
+     own soft ground (css .m-txt), and that row's technology terms pop in a
+     second colour. The term patterns are baked from the study's own lexicon
+     (data/termrx.json): ci = case-insensitive phrases, cs = case-sensitive
+     abbreviations. */
+  const ESCH = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  function hlParts(escaped, rx) {
+    return escaped.split(/(<mark class="kw">[\s\S]*?<\/mark>)/).map(seg =>
+      seg.startsWith('<mark') ? seg
+        : seg.replace(rx, m => `<mark class="kw">${m}</mark>`)).join('');
+  }
+  function hlFam(s, fam) {
+    const t = (D.termrx || {})[fam] || {};
+    let out = ESCH(s);
+    // ci patterns are often stems ("cyber[\s-]?secur"); extend the match to
+    // the word's end so the mark never cuts a word in half
+    try { if (t.ci) out = hlParts(out, new RegExp('(?:' + t.ci + ')[A-Za-z]*', 'gi')); } catch (e) {}
+    try { if (t.cs) out = hlParts(out, new RegExp(t.cs, 'g')); } catch (e) {}
+    return out;
   }
 
   /* Verified scroll-to-text anchors, one JSON per industry, loaded lazily so
@@ -296,7 +320,7 @@
         <div class="modal-body">` +
       (rows.length ? rows.map(([fam, s]) => {
         const anch = D.anchors && D.anchors[`s:${cik}:${fy}:${fam}`];
-        return `<div class="m-sent"><div class="m-txt">${s.replace(/</g, '&lt;')}</div>
+        return `<div class="m-sent"><div class="m-txt">${hlFam(s, fam)}</div>
           <div class="m-foot"><span>${D.inventory.labels[fam] || fam} · first mention in this filing</span>
           <a target="_blank" rel="noopener" href="${docUrl}${anch ? anch.f : ''}">
             open at this sentence${anch ? '' : ' (top of document)'} ↗</a></div></div>`;
@@ -420,11 +444,11 @@
         <div class="stat"><div class="v">${sm.laggard.construction_mean_rank.toFixed(1)} / 9</div>
           <div class="k">construction's mean entry rank across ${sm.laggard.n_technologies} technologies</div></div>
         <div class="stat accent"><div class="v">p = ${sm.laggard.p_permutation.toFixed(2)}</div>
-          <div class="k">permutation test: NOT significantly later than chance — mid-pack, not last</div></div>
+          <div class="k">permutation test: NOT significantly later than chance: mid-pack, not last</div></div>
         <div class="stat"><div class="v">×${sm.hazard.software_median_or.toFixed(1)}</div>
           <div class="k">software's odds of picking a technology's language up first, vs construction</div></div>
         <div class="stat risk"><div class="v">+1.2 pp/yr</div>
-          <div class="k">Item 1A share rises with vocabulary age (p ${sm.lifecycle.p < .001 ? '&lt; .001' : '= ' + sm.lifecycle.p.toFixed(3)}) — capability first, risk accretes</div></div>
+          <div class="k">Item 1A share rises with vocabulary age (p ${sm.lifecycle.p < .001 ? '&lt; .001' : '= ' + sm.lifecycle.p.toFixed(3)}): capability first, risk accretes</div></div>
       </div>
 
       <div class="card"><h2>Who is actually late? Mean entry rank, with its permutation p</h2>
@@ -453,7 +477,7 @@
           <p class="sub">Once a hype technology clears the entry bar it does
           not collapse faster than a steady one (quadratic difference
           p = ${sm.hype_shape.p.toFixed(2)}); the hype signature is never
-          clearing the bar at all — the "never" rows on the entry matrix.</p>
+          clearing the bar at all: the "never" rows on the entry matrix.</p>
           <div id="st-shape" class="chart"></div></div>
       </div>`;
 
@@ -526,7 +550,7 @@
           <p class="sub">Once a firm first mentions a family, the share still
           mentioning it t years later (counted only in years the firm files).
           Risk language never lets go; hype words half-vanish within five
-          years. TQM now stands at 6% of its 1998 peak — words die like fads.</p>
+          years. TQM now stands at 6% of its 1998 peak: words die like fads.</p>
           <div id="nt-ret" class="chart"></div></div>
         <div class="card"><h2>What gets abandoned</h2>
           <p class="sub">Odds of dropping the family from next year's 10-K,
@@ -536,7 +560,7 @@
       </div>` : ''}
       ${N.moves ? `<div class="card"><h2>The moves of technology talk, era by era</h2>
         <p class="sub">Three open-weight models coded what each sampled technology
-        sentence is DOING. The capability showcase leads in every era — but the
+        sentence is DOING. The capability showcase leads in every era, but the
         threat narrative climbs 19% → 32% → 49% of its own passages across the
         three eras, and the governance signal is almost entirely a post-2015
         invention. Sentences without a two-model majority are not shown.</p>
@@ -667,13 +691,16 @@
     D.anchors = {};
     const start = location.hash.replace('#', '');
     show(['overview', 'filings', 'technologies', 'stats', 'precision', 'method']
-         .includes(start) ? start : 'filings');
+         .includes(start) ? start : 'filings', false);
     const smallP = Promise.all(
       ['headline', 'lag', 'adoption', 'entries', 'risk_first', 'precision',
        'lagstats']
         .map(n => fetch('data/' + n + '.json').then(r => r.json())));
     // the night-batch statistics view degrades gracefully when absent
     const nightP = fetch('data/night.json')
+      .then(r => r.ok ? r.json() : null).catch(() => null);
+    // lexicon term patterns for the review-panel keyword highlight
+    const termP = fetch('data/termrx.json')
       .then(r => r.ok ? r.json() : null).catch(() => null);
     try {
       D.inventory = await fetch('data/inventory.json').then(r => r.json());
@@ -697,6 +724,7 @@
     [D.headline, D.lag, D.adoption, D.entries, D.risk_first, D.precision,
      D.lagstats] = files;
     D.night = await nightP;
+    D.termrx = await termP;
     renderOverview();
     renderTech();
     renderStats();

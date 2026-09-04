@@ -237,6 +237,15 @@ def main():
     else:
         jput(None, "precision")
 
+    # ------------------------------------------------- lexicon term patterns
+    # the review panel's keyword highlight uses the study's OWN term regexes,
+    # baked straight from the analysis lib so site and paper agree on what
+    # counts as the technology's vocabulary
+    sys.path.insert(0, str(next((ROOT / "02_analysis").glob("01_*"))))
+    import lib as p3lib
+    jput({fam: {"ci": spec.get("ci") or "", "cs": spec.get("cs") or ""}
+          for fam, spec in p3lib.TECH.items()}, "termrx")
+
     # -------------------------------------------- the night batch (analyses 11-13)
     def adir(prefix):
         p = next((d for d in sorted((ROOT / "02_analysis").iterdir())
