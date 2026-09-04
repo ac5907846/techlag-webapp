@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Technology Lag: thirty years of 10-K disclosure</title>
+<meta name="description" content="When ~20 technologies entered the 10-K disclosure of seven US industries, FY1996-2025, and how many years construction trailed the leader. Paper 3 of the disclosure series.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="preload" href="data/inventory.json" as="fetch" crossorigin>
+</head>
+<body>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site">
+  <div class="wrap head-inner">
+    <div class="brand">
+      <span class="mark" aria-hidden="true"></span>
+      <div>
+        <div class="brand-t">Technology Lag</div>
+        <div class="brand-s">Paper 3 of the disclosure series</div>
+      </div>
+    </div>
+    <nav id="nav" aria-label="Sections">
+      <button data-view="filings" class="on">Filings</button>
+      <button data-view="overview">Overview</button>
+      <button data-view="technologies">Technologies</button>
+      <button data-view="stats">Statistics</button>
+      <button data-view="precision">Precision</button>
+      <button data-view="method">Method</button>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="wrap">
+
+  <!-- ============================================ OVERVIEW -->
+  <section id="view-overview" class="view">
+    <div class="hero">
+      <h1>Construction adopts late. <em>Now there is a number.</em></h1>
+      <p class="lede">
+        The folk claim says construction is the last industry to pick up any
+        technology. This measures it: for ~20 technologies and seven
+        industries, the first fiscal year each technology sustainably entered
+        10-K disclosure, FY1996&ndash;2025 &mdash; and how many years
+        construction trailed the leading industry.
+      </p>
+    </div>
+
+    <div class="stats">
+      <div class="stat accent"><div class="v" id="ov-lag">&hellip;</div>
+        <div class="k">median construction lag behind the leading industry</div></div>
+      <div class="stat risk"><div class="v" id="ov-never">&hellip;</div>
+        <div class="k">technologies that never reached 5% of construction 10-Ks</div></div>
+      <div class="stat"><div class="v" id="ov-filings">&hellip;</div>
+        <div class="k">10-K filings scanned, FY1996&ndash;2025</div></div>
+      <div class="stat"><div class="v" id="ov-firms">&hellip;</div>
+        <div class="k">registrants across seven industries</div></div>
+    </div>
+
+    <div class="card">
+      <h2>When each technology entered each industry's disclosure</h2>
+      <p class="sub">A dot per industry at its first sustained entry (5% of
+        filings, 3 firms, held two consecutive years). Construction is the
+        large blue dot. A lag marked &ldquo;&ge;&rdquo; is a lower bound: the
+        leader was already above threshold when the panel starts in 1996.
+        Hover any dot for detail.</p>
+      <div id="ch-matrix" class="chart"></div>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <h2>The lag, technology by technology</h2>
+        <div class="tablewrap"><table class="data" id="tbl-lag"></table></div>
+      </div>
+      <div class="card">
+        <h2>Reading the matrix</h2>
+        <div class="prose">
+          <p><strong>The lag is real but structured.</strong> Technologies
+            dated after 2005, where the panel is uncensored, put construction
+            4&ndash;7 years behind the leader: cybersecurity 4, IoT 4, cloud
+            6, big data 6, blockchain 7.</p>
+          <p><strong>The internet is the exception that dates the claim.</strong>
+            In FY1996 construction was already among the leading industries on
+            internet language. When a technology arrives with a consumer-scale
+            wave, construction moves with everyone else &mdash; the same
+            pattern paper 2 finds for AI after ChatGPT.</p>
+          <p><strong>Empty rows are findings.</strong> RFID, wearables, VR/AR,
+            3D printing and autonomous equipment each cleared the threshold in
+            at least one contrast industry and never in construction.</p>
+          <p><strong>Risk-first entry is a signature, not a rule.</strong> Of
+            the technology-industry entries dated 2006 or later, only a
+            minority arrive risk-first &mdash; overwhelmingly cybersecurity,
+            plus blockchain. Most technologies enter as capability
+            language.</p>
+          <p><strong>AI's lag is a lower-bound story told elsewhere.</strong>
+            The AI term family failed the precision check on the pre-2015
+            eras (document part numbering and initials masquerade as
+            &ldquo;A.I&rdquo;), so its adoption numbers await passage-level
+            coding; paper 2 carries the AI contrast on the modern panel.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================ FILINGS -->
+  <section id="view-filings" class="view" hidden>
+    <div class="hero">
+      <h1>Thirty years of filings, <em>one click from the original</em></h1>
+      <p class="lede">
+        One square per company-year, FY1996&ndash;2025. Colour is how many of
+        the confirmed technology families that annual report mentions. Hover
+        a square to see which; click it to open that filing on sec.gov,
+        scrolled to its first technology sentence where a verified anchor
+        exists. Each industry splits into its SIC subgroups &mdash; including
+        construction's upstream machinery suppliers, the Caterpillar and
+        Deere band &mdash; or search across all eight.
+      </p>
+    </div>
+    <div class="card">
+      <div class="toolbar">
+        <input id="inv-search" type="search" placeholder="Find a company across all industries&hellip;"
+               aria-label="Search companies">
+        <select id="inv-ind" aria-label="Industry"></select>
+        <span class="count" id="inv-count"></span>
+      </div>
+      <div class="legend inv-legend">
+        <span><i style="background:var(--surface);box-shadow:inset 0 0 0 1px var(--line-2)"></i>filed, under the word-count screen that year</span>
+        <span><i style="background:var(--zero)"></i>no technology language</span>
+        <span><i style="background:var(--s1)"></i>1&ndash;2 technology families</span>
+        <span><i style="background:var(--s3)"></i>3&ndash;5</span>
+        <span><i style="background:var(--s5)"></i>6 or more</span>
+      </div>
+      <div id="inv-grid" class="inv inv30"></div>
+    </div>
+  </section>
+
+  <!-- ============================================ TECHNOLOGIES -->
+  <section id="view-technologies" class="view" hidden>
+    <div class="hero">
+      <h1>Every technology, <em>every industry, thirty years</em></h1>
+      <p class="lede">Share of each industry's operating filings mentioning the
+        technology, FY1996&ndash;2025. Construction is the heavy blue line.</p>
+    </div>
+    <div class="card">
+      <div class="toolbar">
+        <select id="t-fam" aria-label="Choose a technology"></select>
+        <span class="count" id="t-note"></span>
+      </div>
+      <div id="ch-tech" class="chart"></div>
+      <div class="tablewrap" style="margin-top:14px"><table class="data" id="tbl-tech"></table></div>
+    </div>
+  </section>
+
+  <!-- ============================================ STATISTICS -->
+  <section id="view-stats" class="view" hidden>
+    <div class="hero">
+      <h1>The lag, <em>tested</em></h1>
+      <p class="lede">
+        Four formal tests of the paper's claims. The headline twist: the folk
+        claim does not survive — construction sits mid-pack on entry order,
+        while the statistically late industries are pharma, retail, utilities
+        and, of all bands, construction's own machinery suppliers. What is
+        real is the gap to the frontier. Every estimate is an association
+        about corporate language.
+      </p>
+    </div>
+    <div id="stats-body"></div>
+  </section>
+
+  <!-- ============================================ PRECISION -->
+  <section id="view-precision" class="view" hidden>
+    <div class="hero">
+      <h1>Can a keyword <em>be trusted?</em></h1>
+      <p class="lede">
+        Every adoption number on this site comes from a term family that
+        passed a precision check: three open-weight language models from three
+        labs (Alibaba, Microsoft, Mistral AI) read random hit contexts from
+        the filings and judged whether the matched term really denotes the
+        technology. A family stays keyword-measured only if at least 80% of
+        its hits are true positives; a family that fails is measured by
+        passage-level coding instead.
+      </p>
+    </div>
+    <div id="prec-body"></div>
+  </section>
+
+  <!-- ============================================ METHOD -->
+  <section id="view-method" class="view" hidden>
+    <div class="hero"><h1>How it was <em>measured</em></h1></div>
+    <div class="card prose">
+      <h2>Data</h2>
+      <p>Every 10-K variant (10-K, 10-K405, 10-KSB, 10-KT and amendments)
+        filed by US registrants in seven SIC-defined industries, fiscal years
+        1996&ndash;2025 &mdash; 41,880 filings, frozen under a SHA-256
+        manifest. FY1996 is the panel floor because EDGAR's electronic-filing
+        mandate phased in through 1996; earlier years exist only on paper or
+        in licensed archives, which the series' public-data-only rule
+        excludes.</p>
+      <h2>Term families</h2>
+      <p>~25 boundary-guarded term families, tiered: clean families are
+        measured by keyword counts (subject to the precision check); noisy
+        families (lean, modular/prefab, automation, TQM, six sigma) never
+        carry adoption numbers from raw counts and await passage-level LLM
+        coding. Bare abbreviations (BIM, ERP, RFID, GPS, IoT, AI) are matched
+        case-sensitively so initials and tickers never count.</p>
+      <h2>Dating an entry</h2>
+      <p>An industry adopts a technology's language in the first fiscal year
+        at least 5% of its operating filings and at least 3 distinct firms
+        mention it, sustained for two consecutive years. Sensitivity variants
+        (2%/2 firms, 10%, no-sustain) are computed alongside. Leaders already
+        above threshold in FY1996 are left-censored, and their lags are
+        reported as lower bounds.</p>
+      <h2>The screen</h2>
+      <p>Filings under 5,000 words are excluded (shells and blank-check
+        registrants). The series' financial screen needs XBRL data that does
+        not exist before 2009, so it is a robustness check on the 2014+
+        overlap rather than a panel-wide filter.</p>
+      <h2>What this is not</h2>
+      <p>Disclosure entry is when a technology reached the industry's
+        <em>conversation with investors</em>, not when the first machine
+        arrived on a site. Every result is a fact about corporate language.</p>
+    </div>
+  </section>
+
+</main>
+
+<script src="js/charts.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
