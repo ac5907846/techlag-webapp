@@ -167,9 +167,13 @@
     cfg.series.forEach(s => {
       const pts = years.map((yr, i) => s.values[i] === null ? null : `${xScale(yr)},${yScale(s.values[i])}`)
                        .filter(Boolean).join(' ');
-      el('polyline', { points: pts, fill: 'none', stroke: css(s.color),
+      // a lighter line is a pre-mixed colour, not an opacity: the chart sits on
+      // white, so it looks the same, and it prints (and exports) as a plain
+      // vector stroke instead of a transparency group
+      el('polyline', { points: pts, fill: 'none',
+                       stroke: s.opacity && s.opacity < 1 ? tint(css(s.color), s.opacity) : css(s.color),
                        'stroke-width': s.width || 2.4, 'stroke-linejoin': 'round',
-                       'stroke-linecap': 'round', opacity: s.opacity || 1 }, f.svg);
+                       'stroke-linecap': 'round' }, f.svg);
       years.forEach((yr, i) => {
         if (s.values[i] === null) return;
         const c = el('circle', { cx: xScale(yr), cy: yScale(s.values[i]),
@@ -247,7 +251,7 @@
   function barsH(host, cfg) {
     const rowH = cfg.rowH || 26;
     const w = cfg.w || 780, h = cfg.items.length * rowH + 34;
-    const m = { t: 8, r: 46, b: 26, l: cfg.labelW || 210 };
+    const m = { t: 8, r: cfg.padR || 46, b: 26, l: cfg.labelW || 210 };
     const f = frame(host, w, h, m);
     const max = Math.max(...cfg.items.map(d => d.value)) || 1;
     cfg.items.forEach((d, i) => {
@@ -307,6 +311,53 @@
                                fill: css(d.color || '--accent'),
                                stroke: css('--surface'), 'stroke-width': 1.4 }, f.svg);
       hoverable(c, `<b>${d.label}</b><br>first seen FY${d.year}<br>${d.tip || ''}`);
+    });
+  }
+
+  // ================================================================ draw-in
+  /* Trace a line chart in: every series is drawn from left to right and its
+     points appear as the pen passes them. Skipped for readers who prefer
+     reduced motion; the final picture is identical either way. */
+  const REDUCED = !!(global.matchMedia &&
+                     global.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  function drawIn(host, ms) {
+    const svg = host && host.querySelector('svg');
+    if (REDUCED || !svg) return;
+    const dur = ms || 1600;
+    // lineChart draws each series as a polyline followed by one circle per
+    // point, in the same order: the pen moves at constant speed along the
+    // line and every circle appears when the pen reaches its point
+    const lines = [], dots = [];
+    let cum = null, total = 1, k = 0;
+    Array.from(svg.children).forEach(node => {
+      const tag = node.tagName.toLowerCase();
+      if (tag === 'polyline') {
+        const p = (node.getAttribute('points') || '').trim().split(/\s+/)
+          .map(s => s.split(',').map(Number));
+        cum = [0];
+        for (let i = 1; i < p.length; i++) {
+          cum.push(cum[i - 1] + Math.hypot(p[i][0] - p[i - 1][0], p[i][1] - p[i - 1][1]));
+        }
+        total = cum[cum.length - 1] || 1; k = 0;
+        lines.push({ node, total });
+      } else if (tag === 'circle' && cum) {
+        dots.push({ node, delay: Math.round((cum[Math.min(k++, cum.length - 1)] / total) * dur) });
+      }
+    });
+    lines.forEach(({ node, total }) => {             // hidden start
+      node.style.transition = 'none';
+      node.style.strokeDasharray = total;
+      node.style.strokeDashoffset = total;
+    });
+    dots.forEach(({ node }) => { node.style.transition = 'none'; node.style.opacity = 0; });
+    svg.getBoundingClientRect();                      // commit it once
+    lines.forEach(({ node }) => {
+      node.style.transition = `stroke-dashoffset ${dur}ms linear`;
+      node.style.strokeDashoffset = 0;
+    });
+    dots.forEach(({ node, delay }) => {
+      node.style.transition = `opacity .2s ease ${delay}ms`;
+      node.style.opacity = '';
     });
   }
 
@@ -406,5 +457,5 @@
 
   global.Charts = { lineChart, stackedBar, groupedBar, barsH, spark,
                     dotTimeline, trajChart, legend, fmtPct, fmtNum, css,
-                    tint, swatchCSS, showTip, hideTip };
+                    tint, swatchCSS, showTip, hideTip, drawIn };
 })(window);

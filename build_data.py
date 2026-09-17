@@ -66,8 +66,9 @@ A02 = A02 / "outputs" if A02 else None
 DATA = HERE / "data"
 DATA.mkdir(exist_ok=True)
 
-INDUSTRIES = ["Construction", "Auto manufacturing", "Software & IT services",
-              "Pharma & biotech", "Utilities", "Retail", "Aerospace & defense"]
+INDUSTRIES = ["Construction", "Construction machinery", "Auto manufacturing",
+              "Software & IT services", "Computers & chips", "Pharma & biotech",
+              "Utilities", "Retail", "Aerospace & defense"]
 
 LABEL = {
     "bim": "BIM", "gps_telematics": "GPS / telematics", "rfid": "RFID",
@@ -216,7 +217,14 @@ def main():
         shp_b = (shp.groupby(["grp", "yse"])
                  .agg(m=("pct_mentioning", "mean"), n=("pct_mentioning", "size"))
                  .reset_index())
+        # the lifecycle slope under calendar-year fixed effects (analysis 15):
+        # the site states the paper's reading, a calendar effect
+        a15 = next((p for p in sorted((ROOT / "02_analysis").iterdir())
+                    if p.name.startswith("15_")), None)
+        lr = (pd.read_csv(a15 / "outputs" / "lifecycle_robustness.csv").to_dict("records")
+              if a15 and (a15 / "outputs" / "lifecycle_robustness.csv").exists() else [])
         jput({"laggard": pd.read_csv(o3 / "laggard_permutation.csv").to_dict("records"),
+              "lifecycle_robustness": lr,
               "hazard": pd.read_csv(o3 / "hazard_by_technology.csv").to_dict("records"),
               "hazard_summary": pd.read_csv(o3 / "hazard_summary.csv").to_dict("records"),
               "lifecycle_binned": life_b[life_b.n >= 5].to_dict("records"),

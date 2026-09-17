@@ -128,9 +128,11 @@ h2{font-size:19px;font-weight:650;letter-spacing:-.01em;margin:0 0 4px}
 .tip b{color:var(--bg)}
 /* the sentence the square lands on, previewed before the reader leaves the site */
 .tip q{display:block;margin:7px 0;font-family:var(--serif);font-size:12px;
-       line-height:1.4;opacity:.88;border-left:2px solid rgba(255,255,255,.3);
+       line-height:1.4;color:color-mix(in srgb,var(--bg) 88%,var(--ink));
+       border-left:2px solid color-mix(in srgb,var(--bg) 30%,var(--ink));
        padding-left:8px}
-.tip i{display:block;margin-top:6px;opacity:.7;font-size:11.5px}
+.tip i{display:block;margin-top:6px;color:color-mix(in srgb,var(--bg) 70%,var(--ink));
+       font-size:11.5px}
 
 /* ------------------------------------------------------- filing inventory */
 .inv{max-width:940px;margin:0 auto}
@@ -338,6 +340,35 @@ mark{background:color-mix(in srgb,var(--c3) 40%,transparent);color:inherit;
 @media(max-width:1020px){
   .inv30{overflow-x:auto}
   .inv30 .inv-row{grid-template-columns:130px repeat(30,16px) 34px;min-width:660px}
+}
+
+/* ------------------------------------------------ entry-matrix replay */
+.player{display:flex;align-items:center;gap:12px;margin:2px 0 4px}
+.player .play{font:inherit;font-size:13px;font-weight:600;color:var(--accent);
+  background:var(--accent-soft);border:0;border-radius:var(--r-s);padding:6px 13px;
+  cursor:pointer;white-space:nowrap;min-width:92px;text-align:left}
+.player .play:hover{background:color-mix(in srgb,var(--accent) 16%,var(--surface))}
+.player .play:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.player input[type=range]{flex:1;min-width:120px;accent-color:var(--accent);cursor:pointer}
+.player .yr{font-size:13px;font-weight:650;color:var(--ink-2);min-width:56px;text-align:right;
+  font-variant-numeric:tabular-nums}
+.mx-dot{opacity:0;transform:scale(.25);transform-box:fill-box;transform-origin:center;
+  transition:opacity .22s ease,transform .38s cubic-bezier(.3,1.7,.5,1)}
+.mx-dot.in{opacity:1;transform:none}
+.mx-dot:not(.in){pointer-events:none}
+.mx-ring{opacity:0;transform-box:fill-box;transform-origin:center}
+.mx-dot.focal.in .mx-ring{animation:mxring .9s ease-out 1}
+@keyframes mxring{from{opacity:.6;transform:scale(1)}to{opacity:0;transform:scale(2.5)}}
+.mx-note{transition:opacity .3s ease}
+.mx-note.pre{opacity:0}
+.mx-head{transition:opacity .3s ease}
+.mx-head.off{opacity:0}
+.mx-head-line{stroke:color-mix(in srgb,var(--accent) 50%,var(--surface));stroke-width:1.3}
+.mx-head-txt{fill:var(--accent);font-size:11px;font-weight:650;font-family:var(--sans);
+  font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion: reduce){
+  .mx-dot,.mx-note,.mx-head{transition:none}
+  .mx-dot.focal.in .mx-ring{animation:none}
 }
 
 /* -------------------------------------------------- filing review panel */

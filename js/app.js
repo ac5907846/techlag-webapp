@@ -71,6 +71,10 @@
     // navigation, or when the visitor already arrived with one
     if (updateHash && (location.hash || view !== 'filings')) location.hash = view;
     window.scrollTo({ top: 0 });
+    // the entry-matrix replay runs only while its view is on screen, and the
+    // adoption curves trace themselves in whenever their view opens
+    if (MX) (view === 'overview' ? MX.enter() : MX.leave());
+    if (view === 'technologies') Charts.drawIn($('#ch-tech'));
   }
   $('#nav').addEventListener('click', (e) => {
     const b = e.target.closest('button'); if (b) show(b.dataset.view);
@@ -79,11 +83,37 @@
   // ------------------------------------------------------- the entry matrix
   /* One row per technology: a grey span from the leading industry's entry to
      the latest entrant, a dot per industry, construction emphasised. The one
-     chart charts.js does not have, so it is drawn here with the same tokens. */
+     chart charts.js does not have, so it is drawn here with the same tokens.
+
+     The matrix replays the thirty years: a playhead sweeps FY1996 to FY2025,
+     each dot appears in the year its industry's disclosure took the
+     vocabulary up, the grey span trails the playhead from the leader's entry
+     to the latest entrant, and construction's lag note appears once it is
+     settled. The replay runs once when the Overview is first opened (never
+     for readers who prefer reduced motion); the slider scrubs to any year.
+     Nothing is computed here: every year shown is a baked entry year. */
+  const REDUCED = !!(window.matchMedia &&
+                     window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const MX_Y0 = 1996, MX_Y1 = 2025, MX_RATE = 2.8;     // fiscal years per second
+  let MX = null;
+
   function entryMatrix(host, rows) {
+    if (MX) MX.leave();
     host.innerHTML = '';
+    const bar = document.createElement('div');
+    bar.className = 'player';
+    bar.innerHTML =
+      '<button type="button" class="play">&#9654; Replay</button>' +
+      `<input type="range" min="${MX_Y0}" max="${MX_Y1}" step="1" value="${MX_Y1}"` +
+      ' aria-label="Show the entries up to this fiscal year">' +
+      `<span class="yr">FY${MX_Y1}</span>`;
+    host.appendChild(bar);
+    const btn = bar.querySelector('.play');
+    const slider = bar.querySelector('input');
+    const yrTxt = bar.querySelector('.yr');
+
     const rowH = 30, labelW = 168, w = 780;
-    const m = { t: 8, r: 86, b: 30, l: labelW };
+    const m = { t: 22, r: 86, b: 30, l: labelW };
     const h = rows.length * rowH + m.t + m.b;
     const svg = document.createElementNS(NS, 'svg');
     svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
@@ -103,6 +133,14 @@
       el('text', { x: xS(yr), y: h - 10, class: 'ax-txt',
                    'text-anchor': 'middle' }).textContent = yr;
     }
+    // the playhead sits under the rows, so a dot is never hidden behind it
+    const head = el('g', { class: 'mx-head off' });
+    const headLine = el('line', { x1: 0, y1: m.t - 6, x2: 0, y2: h - m.b + 2,
+                                  class: 'mx-head-line' }, head);
+    const headTxt = el('text', { x: 0, y: m.t - 10, class: 'mx-head-txt',
+                                 'text-anchor': 'middle' }, head);
+
+    const dots = [], spans = [], notes = [];
     rows.forEach((r, i) => {
       const y = m.t + i * rowH + rowH / 2;
       el('text', { x: labelW - 10, y: y + 4, class: 'ax-txt',
@@ -111,34 +149,102 @@
         .filter(d => d.yr !== null && d.yr !== undefined);
       if (entries.length > 1) {
         const yrs = entries.map(d => d.yr);
-        el('line', { x1: xS(Math.min(...yrs)), y1: y, x2: xS(Math.max(...yrs)), y2: y,
-                     stroke: css('--line-2'), 'stroke-width': 3,
-                     'stroke-linecap': 'round' });
+        const lo = Math.min(...yrs), hi = Math.max(...yrs);
+        spans.push({ lo, hi, node: el('line', { x1: xS(lo), y1: y, x2: xS(hi), y2: y,
+                                                stroke: css('--line-2'), 'stroke-width': 3,
+                                                'stroke-linecap': 'round' }) });
       }
       entries.sort((a, b) => (a.ind === 'Construction') - (b.ind === 'Construction'));
       entries.forEach(d => {
         const focal = d.ind === 'Construction';
+        const g = el('g', { class: 'mx-dot in' + (focal ? ' focal' : '') });
+        if (focal) {
+          el('circle', { cx: xS(d.yr), cy: y, r: 7, class: 'mx-ring', fill: 'none',
+                         stroke: css(IND_COLOR[d.ind]), 'stroke-width': 2 }, g);
+        }
         const c = el('circle', { cx: xS(d.yr), cy: y, r: focal ? 7 : 4.5,
                                  fill: css(IND_COLOR[d.ind]),
                                  stroke: css('--surface'),
-                                 'stroke-width': focal ? 1.8 : 1.2 });
+                                 'stroke-width': focal ? 1.8 : 1.2 }, g);
         c.addEventListener('mousemove', (ev) => Charts.showTip(
           `<b>${SHORT[d.ind]}</b><br>${D.lag.labels[r.family]}: sustained entry FY${d.yr}`, ev));
         c.addEventListener('mouseleave', Charts.hideTip);
+        dots.push({ yr: d.yr, node: g });
       });
-      let note = '', cls = 'ax-txt';
+      let note = '', cls = 'ax-txt', at = MX_Y1;
       if (r.construction_lag_years !== null && r.construction_lag_years !== undefined) {
         const v = r.construction_lag_years;
         note = v <= 0 ? 'with leader'
              : (r.leader_left_censored ? '≥' + v + ' yr' : v + ' yr');
+        if (r.construction_entry) at = r.construction_entry;
       } else if (r.construction_never_entered) { note = 'never'; cls = 'brk-txt'; }
       if (note) {
-        const t = el('text', { x: w - m.r + 8, y: y + 4, class: cls });
+        const t = el('text', { x: w - m.r + 8, y: y + 4, class: cls + ' mx-note' });
         t.textContent = note;
         if (note === 'never') t.setAttribute('fill', css('--risk'));
+        notes.push({ at, node: t });
       }
     });
     Charts.legend(host, INDUSTRIES.map(i => ({ name: SHORT[i], color: IND_COLOR[i] })));
+
+    // ------------------------------------------------------------ the player
+    let t = MX_Y1, raf = 0, last = 0, playing = false, started = false, cut = false;
+    function setT(v) {
+      t = v;
+      const yr = Math.max(MX_Y0, Math.min(MX_Y1, Math.floor(t)));
+      const x = xS(Math.max(x0, Math.min(t, MX_Y1)));
+      headLine.setAttribute('x1', x); headLine.setAttribute('x2', x);
+      headTxt.setAttribute('x', x);
+      headTxt.textContent = yr;
+      head.classList.toggle('off', t >= MX_Y1);
+      dots.forEach(d => d.node.classList.toggle('in', d.yr <= t));
+      spans.forEach(s => {
+        s.node.style.visibility = t >= s.lo ? '' : 'hidden';
+        s.node.setAttribute('x2', xS(Math.max(s.lo, Math.min(t, s.hi))));
+      });
+      notes.forEach(n => n.node.classList.toggle('pre', t < n.at));
+      slider.value = yr;
+      yrTxt.textContent = 'FY' + yr;
+    }
+    function label() {
+      btn.innerHTML = playing ? '&#10074;&#10074; Pause'
+                    : t >= MX_Y1 ? '&#9654; Replay' : '&#9654; Play';
+    }
+    function frame(ts) {
+      if (!playing) return;
+      if (last) setT(Math.min(MX_Y1, t + ((ts - last) / 1000) * MX_RATE));
+      last = ts;
+      if (t >= MX_Y1) { pause(); return; }
+      raf = requestAnimationFrame(frame);
+    }
+    function play() {
+      if (t >= MX_Y1) setT(MX_Y0 - .5);
+      playing = true; last = 0; label();
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(frame);
+    }
+    function pause() {
+      playing = false; cancelAnimationFrame(raf); label();
+    }
+    btn.addEventListener('click', () => { cut = false; (playing ? pause : play)(); });
+    slider.addEventListener('input', () => { cut = false; setT(+slider.value); pause(); });
+
+    MX = {
+      // first visit: rewind and play; a replay cut short by leaving the view
+      // resumes where it stopped when the reader comes back
+      enter() {
+        if (!started) {
+          started = true;
+          if (REDUCED) return;
+          setT(MX_Y0 - .5); label();
+          setTimeout(() => {
+            if ($('#view-overview').hidden) cut = true; else play();
+          }, 450);
+        } else if (cut) { cut = false; play(); }
+      },
+      leave() { if (playing) { pause(); cut = true; } },
+    };
+    setT(MX_Y1);
   }
 
   // ---------------------------------------------------------------- overview
@@ -152,6 +258,7 @@
     const rows = D.lag.rows.filter(r => r.leader_entry !== null && r.leader_entry !== undefined)
       .sort((a, b) => a.leader_entry - b.leader_entry);
     entryMatrix($('#ch-matrix'), rows);
+    if (!$('#view-overview').hidden) MX.enter();      // arrived straight on #overview
 
     $('#tbl-lag').innerHTML =
       '<thead><tr><th>Technology</th><th>Leader</th><th class="num">Leader FY</th>' +
@@ -194,6 +301,7 @@
       ymax: 100, yFmt: v => v + '%', yLabel: 'Filings mentioning (%)',
       tipFmt: v => v.toFixed(1) + '% of filings',
     });
+    if (!$('#view-technologies').hidden) Charts.drawIn($('#ch-tech'));
 
     const ent = D.entries.filter(e => e.family === fam);
     const rf = D.risk_first.filter(e => e.family === fam);
@@ -221,8 +329,8 @@
 
   // ---------------------------------------------------------------- filings grid
   /* One cell per firm-year, every cell a link to the filing on sec.gov.
-     41,880 filings cannot render at once, so one industry at a time
-     (searching looks across all seven), in chunks. */
+     48,180 filings cannot render at once, so one industry at a time
+     (searching looks across all nine), in chunks. */
   const secDoc = (cik, adsh, doc) =>
     `https://www.sec.gov/Archives/edgar/data/${cik}/${adsh.replace(/-/g, '')}/` +
     (doc || `${adsh}-index.htm`);
@@ -306,7 +414,11 @@
      links open the document top -- the documented progressive-enhancement
      behaviour -- and the grid's hrefs upgrade in place when it arrives. */
   const anchLoaded = {};
+  // verified anchors are built for the construction and machinery bands only;
+  // asking for the other industries' files would only collect 404s
+  const ANCHORED = new Set(['Construction', 'Construction machinery']);
   function loadAnchors(ind) {
+    if (!ANCHORED.has(ind)) return Promise.resolve();
     const slug = SLUG(ind);
     if (!anchLoaded[slug]) {
       anchLoaded[slug] = fetch('data/anchors/' + slug + '.json')
@@ -471,6 +583,12 @@
       return;
     }
     const S = D.lagstats, sm = S.summary;
+    // the lifecycle slope with and without calendar-year effects (analysis 15)
+    const LR = S.lifecycle_robustness || [];
+    const lrHead = LR.find(r => /^headline/.test(r.specification));
+    const lrYear = LR.find(r => /^\+ calendar-year/.test(r.specification));
+    const pp = (v) => (v < 0 ? '−' : '+') + Math.abs(v).toFixed(1);
+    const pTxt = (p) => (p < .001 ? 'p < .001' : 'p = ' + p.toFixed(p < .01 ? 3 : 2));
     host.innerHTML =
       `<div class="stats">
         <div class="stat"><div class="v">${sm.laggard.construction_mean_rank.toFixed(1)} / 9</div>
@@ -479,8 +597,11 @@
           <div class="k">permutation test: NOT significantly later than chance: mid-pack, not last</div></div>
         <div class="stat"><div class="v">×${sm.hazard.software_median_or.toFixed(1)}</div>
           <div class="k">software's odds of picking a technology's language up first, vs construction</div></div>
-        <div class="stat risk"><div class="v">+1.2 pp/yr</div>
-          <div class="k">Item 1A share rises with vocabulary age (p ${sm.lifecycle.p < .001 ? '&lt; .001' : '= ' + sm.lifecycle.p.toFixed(3)}): capability first, risk accretes</div></div>
+${lrHead && lrYear ? `
+        <div class="stat risk"><div class="v">${pp(lrYear.slope_pp_per_year)} pp/yr</div>
+          <div class="k">Item 1A share per year since entry once calendar years are held fixed
+          (${pTxt(lrYear.p)}; ${pp(lrHead.slope_pp_per_year)} without, ${pTxt(lrHead.p)}): the risk
+          regime matured, not the technologies</div></div>` : ''}
       </div>
 
       <div class="card"><h2>Who is actually late? Mean entry rank, with its permutation p</h2>
@@ -499,11 +620,15 @@
         <div id="st-hazard" class="chart"></div></div>
 
       <div class="grid2">
-        <div class="card"><h2>The vocabulary lifecycle</h2>
+        <div class="card"><h2>The vocabulary lifecycle, and the calendar behind it</h2>
           <p class="sub">Share of a technology's located mentions sitting in
           Item 1A, by years since the industry's sustained entry (2006+
-          entries). The talk enters as capability and accretes risk language
-          as it matures.</p>
+          entries). The talk enters as capability and the risk share climbs,
+          but years since entry and calendar years move together: with
+          calendar-year fixed effects the climb disappears${lrYear
+            ? ` (${pp(lrYear.slope_pp_per_year)} pp a year, ${pTxt(lrYear.p)})` : ''},
+          so it is the risk-factor regime maturing around every technology at
+          once.</p>
           <div id="st-life" class="chart"></div></div>
         <div class="card"><h2>Hype against steady, in event time</h2>
           <p class="sub">Once a hype technology clears the entry bar it does
@@ -514,7 +639,7 @@
       </div>`;
 
     Charts.barsH($('#st-rank'), {
-      labelW: 170,
+      labelW: 170, padR: 86,              // room for the "· late*" verdicts
       items: S.laggard.map(r => ({
         label: SHORT[r.industry] || r.industry,
         value: r.mean_entry_rank, color: IND_COLOR[r.industry],
@@ -576,6 +701,15 @@
   const ERAS3 = ['1996-2004', '2005-2014', '2015-2025'];
   function renderNight(host) {
     const N = D.night;
+    // where each move's own sentences fall across the three eras: shares of
+    // baked counts, so the prose cannot drift from the data
+    const eraShare = (key) => {
+      if (!N.moves) return [];
+      const n = ERAS3.map(e => (N.moves.by_era.find(r => r.era === e) || {})['n_' + key] || 0);
+      const tot = n.reduce((a, b) => a + b, 0) || 1;
+      return n.map(v => Math.round((100 * v) / tot));
+    };
+    const thr = eraShare('threat_narrative'), gov = eraShare('compliance_signal');
     host.insertAdjacentHTML('beforeend',
       `${N.lifecycle ? `<div class="grid2">
         <div class="card"><h2>Once said, kept? The mortality of technology words</h2>
@@ -591,11 +725,13 @@
           <div id="nt-haz" class="chart"></div></div>
       </div>` : ''}
       ${N.moves ? `<div class="card"><h2>The moves of technology talk, era by era</h2>
-        <p class="sub">Three open-weight models coded what each sampled technology
-        sentence is DOING. The capability showcase leads in every era, but the
-        threat narrative climbs 19% → 32% → 49% of its own passages across the
-        three eras, and the governance signal is almost entirely a post-2015
-        invention. Sentences without a two-model majority are not shown.</p>
+        <p class="sub">Three open-weight models coded what each of
+        ${N.moves.by_era.reduce((a, r) => a + r.n_passages, 0).toLocaleString('en-US')} sampled
+        technology sentences is DOING. The capability showcase is the most
+        common move overall; the threat narrative concentrates late
+        (${thr.join('% → ')}% of its own sentences across the three eras), and
+        the governance signal is largely a post-2015 arrival (${gov[2]}% of its
+        sentences). Sentences without a two-model majority are not shown.</p>
         <div id="nt-moves" class="chart"></div></div>` : ''}
       ${N.constellations ? `<div class="card"><h2>The sky fills in: technologies arrive as a bundle</h2>
         <p class="sub">Family pairs co-mentioned in the SAME filing more often than
@@ -686,7 +822,7 @@
       `<div class="stat"><div class="v">${fmtPct(s.mean_pairwise_agreement, 0)}</div>` +
       `<div class="k">mean pairwise agreement between labs</div></div>` +
       `<div class="stat risk"><div class="v">${s.demoted_to_llm.length}</div>` +
-      `<div class="k">families demoted to passage-level coding</div></div>` +
+      `<div class="k">families the check demoted out of the adoption measures</div></div>` +
       `<div class="stat good"><div class="v">${s.promoted_to_lexicon.length}</div>` +
       `<div class="k">noisy families that turned out clean</div></div>` +
       `</div>` +
@@ -706,8 +842,8 @@
           (r.changed ? (r.tier_decision === 'llm' ? ' ↓ demoted' : ' ↑ promoted') : ''),
         tip: `${r.n_sampled} contexts · ${fmtPct(r.pct_unanimous, 0)} unanimous · stays ${r.tier_decision}`,
       })),
-      legend: [{ name: 'keyword tier (clean)', color: '--c2' },
-               { name: 'passage-coding tier (noisy)', color: '--risk' }],
+      legend: [{ name: 'kept: keyword-measured', color: '--c2' },
+               { name: 'excluded from the adoption measures', color: '--risk' }],
     });
   }
 
