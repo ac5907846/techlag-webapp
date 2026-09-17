@@ -33,32 +33,34 @@
     'Utilities': 'Utilities', 'Retail': 'Retail', 'Aerospace & defense': 'Aerospace & def',
   };
 
-  /* SIC subgroups inside each industry (SEC's own SIC titles). */
+  /* SIC subgroups inside each industry (SEC SIC titles, with the code). */
   function subgroup(industry, sic) {
     sic = +sic;
     if (industry === 'Construction') {
-      if (sic >= 1500 && sic < 1600) return 'General building contractors';
-      if (sic >= 1600 && sic < 1700) return 'Heavy construction';
-      if (sic >= 1700 && sic < 1800) return 'Special trade contractors';
-      return 'Engineering services';
+      if (sic >= 1500 && sic < 1600) return 'General building contractors (SIC 15)';
+      if (sic >= 1600 && sic < 1700) return 'Heavy construction (SIC 16)';
+      if (sic >= 1700 && sic < 1800) return 'Special trade contractors (SIC 17)';
+      return 'Engineering services (SIC 8711)';
     }
-    return ({
-      3523: 'Farm & agricultural machinery (crosses into construction: Deere, AGCO)',
-      3531: 'Construction & mining machinery (Caterpillar, Terex)',
-      3537: 'Industrial trucks & lifts',
-      3711: 'Motor vehicles & car bodies', 3713: 'Truck & bus bodies',
-      3714: 'Motor vehicle parts & accessories',
-      7370: 'Data processing & internet platforms (Alphabet, Meta)',
-      7371: 'IT services & custom programming', 7372: 'Prepackaged software',
-      3570: 'Computer & office equipment (IBM)',
-      3571: 'Electronic computers (Apple, Dell)',
-      3674: 'Semiconductors (NVIDIA, Intel, AMD)',
+    const title = ({
+      3523: 'Farm machinery and equipment',
+      3531: 'Construction machinery and equipment',
+      3537: 'Industrial trucks, tractors and trailers',
+      3711: 'Motor vehicles and passenger car bodies', 3713: 'Truck and bus bodies',
+      3714: 'Motor vehicle parts and accessories',
+      7370: 'Computer programming and data processing',
+      7371: 'Computer programming services', 7372: 'Prepackaged software',
+      3570: 'Computer and office equipment',
+      3571: 'Electronic computers',
+      3674: 'Semiconductors and related devices',
       2834: 'Pharmaceutical preparations', 2836: 'Biological products',
-      8731: 'Commercial physical & biological research',
-      4911: 'Electric services', 4931: 'Electric & other services combined',
-      5311: 'Department stores', 5411: 'Grocery stores', 5912: 'Drug stores',
-      3721: 'Aircraft', 3812: 'Search, detection & navigation systems',
-    })[sic] || 'SIC ' + sic;
+      8731: 'Commercial physical and biological research',
+      4911: 'Electric services', 4931: 'Electric and other services combined',
+      5311: 'Department stores', 5411: 'Grocery stores',
+      5912: 'Drug stores and proprietary stores',
+      3721: 'Aircraft', 3812: 'Search, detection and navigation systems',
+    })[sic];
+    return title ? `${title} (SIC ${sic})` : 'SIC ' + sic;
   }
 
   const D = {};
@@ -167,7 +169,7 @@
                                  stroke: css('--surface'),
                                  'stroke-width': focal ? 1.8 : 1.2 }, g);
         c.addEventListener('mousemove', (ev) => Charts.showTip(
-          `<b>${SHORT[d.ind]}</b><br>${D.lag.labels[r.family]}: sustained entry FY${d.yr}`, ev));
+          `<b>${SHORT[d.ind]}</b><br>${D.lag.labels[r.family]}: first sustained entry, FY${d.yr}`, ev));
         c.addEventListener('mouseleave', Charts.hideTip);
         dots.push({ yr: d.yr, node: g });
       });
@@ -261,16 +263,21 @@
     if (!$('#view-overview').hidden) MX.enter();      // arrived straight on #overview
 
     $('#tbl-lag').innerHTML =
-      '<thead><tr><th>Technology</th><th>Leader</th><th class="num">Leader FY</th>' +
-      '<th class="num">Constr. FY</th><th class="num">Lag</th></tr></thead><tbody>' +
+      '<thead><tr><th>Technology</th><th>Leading industry</th><th class="num">Leader entry</th>' +
+      '<th class="num">Construction entry</th><th class="num">Lag (years)</th></tr></thead><tbody>' +
       rows.map(r => {
         const lag = r.construction_lag_years;
         const lagTxt = (lag === null || lag === undefined)
           ? (r.construction_never_entered ? '<span class="pill" style="color:var(--risk)">never</span>' : '·')
           : lag <= 0 ? '<span class="pill yes">with leader</span>'
-          : (r.leader_left_censored ? '≥' : '') + lag + ' yr';
+          : (r.leader_left_censored ? '≥' : '') + lag;
+        // ties are counted, as in the paper's table; the names sit in the tooltip
+        const leaders = (r.leader_industry || '').split(', ').filter(Boolean);
+        const lead = leaders.length > 1
+          ? `<span title="${leaders.map(i => SHORT[i] || i).join(', ')}">${leaders.length} industries (tie)</span>`
+          : (SHORT[leaders[0]] || leaders[0] || '·');
         return `<tr><td>${D.lag.labels[r.family]}</td>` +
-          `<td>${(r.leader_industry || '').split(', ').map(i => SHORT[i] || i).join(', ')}</td>` +
+          `<td>${lead}</td>` +
           `<td class="num">${r.leader_entry}</td>` +
           `<td class="num">${r.construction_entry || '·'}</td>` +
           `<td class="num">${lagTxt}</td></tr>`;
@@ -324,7 +331,7 @@
           `<td class="num">${e.peak_pct ? fmtPct(e.peak_pct, 1) : '0%'}</td>` +
           `<td class="num">${fr}</td></tr>`;
       }).join('') + '</tbody>';
-    $('#t-note').textContent = 'entry framing: where the located mentions sat in the first three entry years (2006+ entries only)';
+    $('#t-note').textContent = 'Entry framing: filing section of the mentions in the first three years after entry (entries from 2006)';
   }
 
   // ---------------------------------------------------------------- filings grid
@@ -457,22 +464,22 @@
       `<div class="modal" role="dialog" aria-label="Technology sentences in this filing">
         <div class="modal-head">
           <h3>${name} · FY${fy}</h3>
-          <span class="m-meta">${rows.length} technology famil${rows.length === 1 ? 'y' : 'ies'} mentioned</span>
-          <a class="modal-open" target="_blank" rel="noopener" href="${cell.href}">Open the filing ↗</a>
+          <span class="m-meta">${rows.length} technology vocabular${rows.length === 1 ? 'y' : 'ies'} mentioned</span>
+          <a class="modal-open" target="_blank" rel="noopener" href="${cell.href}">Filing on sec.gov ↗</a>
           <button class="modal-x" aria-label="Close">×</button>
         </div>
         <div class="modal-body">` +
       (rows.length ? rows.map(([fam, s]) => {
         const anch = D.anchors && D.anchors[`s:${cik}:${fy}:${fam}`];
         return `<div class="m-sent"><div class="m-txt">${hlAll(s)}</div>
-          <div class="m-foot"><span>${D.inventory.labels[fam] || fam} · first mention in this filing</span>
+          <div class="m-foot"><span>${D.inventory.labels[fam] || fam} · first mention in the filing</span>
           <a target="_blank" rel="noopener" href="${docUrl}${anch ? anch.f : ''}">
-            open at this sentence${anch ? '' : ' (top of document)'} ↗</a></div></div>`;
+            ${anch ? 'open at the sentence' : 'open the filing'} ↗</a></div></div>`;
       }).join('')
-        : '<p class="m-note">No technology sentences extracted for this filing.</p>') +
-      `<p class="m-note">Every link opens the original filing on sec.gov; where a
-        verified anchor exists the browser scrolls to the sentence and highlights
-        it (plain-text era filings cannot carry anchors).</p></div></div>`;
+        : '<p class="m-note">No technology sentences were extracted from this filing.</p>') +
+      `<p class="m-note">Links open the filing on sec.gov. Where a verified text
+        fragment exists, the browser scrolls to the sentence and highlights it;
+        plain-text filings cannot carry text fragments.</p></div></div>`;
     document.body.appendChild(wrap);
     wrap.addEventListener('click', (e) => {
       if (e.target === wrap || e.target.closest('.modal-x')) closeModal();
@@ -496,11 +503,11 @@
           ? a.dataset.t.split(',').map(i => D.inventory.labels[D.inventory.families[+i]]).join(', ')
           : '';
         Charts.showTip(`<b>${a.dataset.name}</b> · FY${a.dataset.fy}<br>` +
-          (a.dataset.x === '1' ? 'under the word-count screen this year'
-            : techs ? techs : 'no technology language') +
+          (a.dataset.x === '1' ? 'below the 5,000-word screen'
+            : techs ? techs : 'no technology vocabulary') +
           (a.dataset.t
-            ? `<i>click to review each technology's sentence, linked into the filing</i>`
-            : `<i>click to open the filing on sec.gov</i>`), e);
+            ? `<i>select to list the first sentence of each vocabulary</i>`
+            : `<i>select to open the filing on sec.gov</i>`), e);
       });
       $('#inv-grid').addEventListener('mouseout', Charts.hideTip);
       $('#inv-grid').addEventListener('click', (e) => {
@@ -592,60 +599,59 @@
     host.innerHTML =
       `<div class="stats">
         <div class="stat"><div class="v">${sm.laggard.construction_mean_rank.toFixed(1)} / 9</div>
-          <div class="k">construction's mean entry rank across ${sm.laggard.n_technologies} technologies</div></div>
+          <div class="k">mean entry rank of construction across ${sm.laggard.n_technologies} technologies</div></div>
         <div class="stat accent"><div class="v">p = ${sm.laggard.p_permutation.toFixed(2)}</div>
-          <div class="k">permutation test: NOT significantly later than chance: mid-pack, not last</div></div>
-        <div class="stat"><div class="v">×${sm.hazard.software_median_or.toFixed(1)}</div>
-          <div class="k">software's odds of picking a technology's language up first, vs construction</div></div>
+          <div class="k">permutation probability of a mean rank at least as late (headline rule)</div></div>
+        <div class="stat"><div class="v">${sm.hazard.software_median_or.toFixed(1)}</div>
+          <div class="k">median odds ratio of first mention, software and IT services relative to construction</div></div>
 ${lrHead && lrYear ? `
-        <div class="stat risk"><div class="v">${pp(lrYear.slope_pp_per_year)} pp/yr</div>
-          <div class="k">Item 1A share per year since entry once calendar years are held fixed
-          (${pTxt(lrYear.p)}; ${pp(lrHead.slope_pp_per_year)} without, ${pTxt(lrHead.p)}): the risk
-          regime matured, not the technologies</div></div>` : ''}
+        <div class="stat risk"><div class="v">${pp(lrYear.slope_pp_per_year)} pp</div>
+          <div class="k">change in the Item 1A share per year since entry with calendar-year
+          fixed effects (${pTxt(lrYear.p)}); ${pp(lrHead.slope_pp_per_year)} pp without them
+          (${pTxt(lrHead.p)})</div></div>` : ''}
       </div>
 
-      <div class="card"><h2>Who is actually late? Mean entry rank, with its permutation p</h2>
-        <p class="sub">Rank 1 = first industry whose disclosure the technology
-        enters; never entering ranks last; 20,000 within-technology label
-        permutations. Ties at the 1996 panel floor work AGAINST finding a lag,
-        so the test is conservative. The statistically late industries are not
-        the one the folk claim names.</p>
+      <div class="card"><h2>Mean entry rank by industry</h2>
+        <p class="sub">Rank 1 is the first industry to enter a vocabulary;
+        industries that do not enter rank last. Probabilities are from 20,000
+        within-technology permutations of the industry labels; ties at the
+        1996 panel floor make the test conservative. Asterisks mark ranks
+        later or earlier than chance (one-sided p &lt; .05).</p>
         <div id="st-rank" class="chart"></div></div>
 
-      <div class="card"><h2>Firm-level pickup speed vs construction</h2>
-        <p class="sub">Median odds ratio from ${new Set(S.hazard.map(h => h.family)).size}
-        discrete-time first-mention models (one per technology): year FE,
-        filing length as the size proxy, SE clustered by firm. Hover a bar for
-        the technology count behind it.</p>
+      <div class="card"><h2>Odds of first mention relative to construction</h2>
+        <p class="sub">Median odds ratio across the
+        ${new Set(S.hazard.map(h => h.family)).size} discrete-time models of a
+        firm's first mention, one per technology, with year fixed effects,
+        filing length as a size control and standard errors clustered by
+        firm.</p>
         <div id="st-hazard" class="chart"></div></div>
 
       <div class="grid2">
-        <div class="card"><h2>The vocabulary lifecycle, and the calendar behind it</h2>
-          <p class="sub">Share of a technology's located mentions sitting in
-          Item 1A, by years since the industry's sustained entry (2006+
-          entries). The talk enters as capability and the risk share climbs,
-          but years since entry and calendar years move together: with
-          calendar-year fixed effects the climb disappears${lrYear
-            ? ` (${pp(lrYear.slope_pp_per_year)} pp a year, ${pTxt(lrYear.p)})` : ''},
-          so it is the risk-factor regime maturing around every technology at
-          once.</p>
+        <div class="card"><h2>Item 1A share by years since entry</h2>
+          <p class="sub">Share of located mentions in the risk-factor section
+          (Item 1A), by years since the industry's sustained entry (entries
+          from 2006).${lrYear ? ` With calendar-year fixed effects the slope is
+          ${pp(lrYear.slope_pp_per_year)} pp a year (${pTxt(lrYear.p)}), so the
+          rise reflects the maturing risk-factor regime rather than the age of
+          the technology.` : ''}</p>
           <div id="st-life" class="chart"></div></div>
-        <div class="card"><h2>Hype against steady, in event time</h2>
-          <p class="sub">Once a hype technology clears the entry bar it does
-          not collapse faster than a steady one (quadratic difference
-          p = ${sm.hype_shape.p.toFixed(2)}); the hype signature is never
-          clearing the bar at all: the "never" rows on the entry matrix.</p>
+        <div class="card"><h2>Mention share after entry by technology group</h2>
+          <p class="sub">Mean share of filers mentioning a vocabulary, by years
+          since entry, for steady tools and speculative vocabularies. The
+          post-entry curvature does not differ between the groups (quadratic
+          term, p = ${sm.hype_shape.p.toFixed(2)}).</p>
           <div id="st-shape" class="chart"></div></div>
       </div>`;
 
     Charts.barsH($('#st-rank'), {
-      labelW: 170, padR: 86,              // room for the "· late*" verdicts
+      labelW: 170, padR: 86,              // room for the "· later*" verdicts
       items: S.laggard.map(r => ({
         label: SHORT[r.industry] || r.industry,
         value: r.mean_entry_rank, color: IND_COLOR[r.industry],
         display: r.mean_entry_rank.toFixed(1) +
-          (r.p_perm_later_than_chance < .05 ? ' · late*'
-            : r.p_perm_later_than_chance > .95 ? ' · early' : ''),
+          (r.p_perm_later_than_chance < .05 ? ' · later*'
+            : r.p_perm_later_than_chance > .95 ? ' · earlier*' : ''),
         tip: `mean rank ${r.mean_entry_rank.toFixed(2)} across ${r.n_technologies} technologies<br>` +
              `P(later than chance) = ${r.p_perm_later_than_chance.toFixed(3)}`,
       })),
@@ -656,9 +662,9 @@ ${lrHead && lrYear ? `
       items: S.hazard_summary.map(r => ({
         label: SHORT[r.industry] || r.industry,
         value: r.median, color: IND_COLOR[r.industry],
-        display: '×' + r.median.toFixed(2),
-        tip: `median odds ×${r.median.toFixed(2)} vs construction<br>` +
-             `IQR ×${r.q25.toFixed(2)}–×${r.q75.toFixed(2)} across ${r.n} technologies`,
+        display: r.median.toFixed(2),
+        tip: `median odds ratio ${r.median.toFixed(2)} relative to construction<br>` +
+             `interquartile range ${r.q25.toFixed(2)} to ${r.q75.toFixed(2)}, ${r.n} technologies`,
       })),
     });
 
@@ -674,8 +680,8 @@ ${lrHead && lrYear ? `
     const sys = [...new Set(S.shape_binned.map(r => r.yse))].sort((a, b) => a - b);
     Charts.lineChart($('#st-shape'), {
       years: sys, height: 250, everyX: 2,
-      series: [['steady', '--accent', 'steady operational'],
-               ['hype', '--risk', 'hype-and-fade']].map(([g, color, name]) => ({
+      series: [['steady', '--accent', 'steady tools'],
+               ['hype', '--risk', 'speculative vocabularies']].map(([g, color, name]) => ({
         name, color, width: 2.2,
         values: sys.map(y => {
           const r = S.shape_binned.find(x => x.grp === g && x.yse === y);
@@ -712,35 +718,36 @@ ${lrHead && lrYear ? `
     const thr = eraShare('threat_narrative'), gov = eraShare('compliance_signal');
     host.insertAdjacentHTML('beforeend',
       `${N.lifecycle ? `<div class="grid2">
-        <div class="card"><h2>Once said, kept? The mortality of technology words</h2>
-          <p class="sub">Once a firm first mentions a family, the share still
-          mentioning it t years later (counted only in years the firm files).
-          Risk language never lets go; hype words half-vanish within five
-          years. TQM now stands at 6% of its 1998 peak: words die like fads.</p>
+        <div class="card"><h2>Retention after first mention</h2>
+          <p class="sub">Share of firms still mentioning a vocabulary t years
+          after their first mention, by technology group, counting only the
+          years in which the firm filed.</p>
           <div id="nt-ret" class="chart"></div></div>
-        <div class="card"><h2>What gets abandoned</h2>
-          <p class="sub">Odds of dropping the family from next year's 10-K,
-          against steady tools (logit, industry + year fixed effects, tenure
-          control). Below ×1 = stickier than a tool.</p>
+        <div class="card"><h2>Abandonment odds by technology group</h2>
+          <p class="sub">Odds of dropping a vocabulary from the next 10-K
+          relative to steady tools, from a logit with industry and year fixed
+          effects and a tenure control; values below 1 indicate lower odds of
+          dropping.</p>
           <div id="nt-haz" class="chart"></div></div>
       </div>` : ''}
-      ${N.moves ? `<div class="card"><h2>The moves of technology talk, era by era</h2>
-        <p class="sub">Three open-weight models coded what each of
+      ${N.moves ? `<div class="card"><h2>Rhetorical moves by era</h2>
+        <p class="sub">Share of the
         ${N.moves.by_era.reduce((a, r) => a + r.n_passages, 0).toLocaleString('en-US')} sampled
-        technology sentences is DOING. The capability showcase is the most
-        common move overall; the threat narrative concentrates late
-        (${thr.join('% → ')}% of its own sentences across the three eras), and
-        the governance signal is largely a post-2015 arrival (${gov[2]}% of its
-        sentences). Sentences without a two-model majority are not shown.</p>
+        technology sentences assigned to each move by a two-of-three majority
+        of three open-weight models; sentences without a majority are omitted.
+        The capability showcase is the most frequent move overall. Of the
+        threat-narrative sentences, ${thr[0]}%, ${thr[1]}% and ${thr[2]}% fall
+        in the three eras, and ${gov[2]}% of the governance-signal sentences
+        fall in 2015&ndash;2025.</p>
         <div id="nt-moves" class="chart"></div></div>` : ''}
-      ${N.constellations ? `<div class="card"><h2>The sky fills in: technologies arrive as a bundle</h2>
-        <p class="sub">Family pairs co-mentioned in the SAME filing more often than
-        chance (lift ≥ 1.5, Fisher exact, Bonferroni). The wiring triples and then
-        doubles: technology talk has consolidated into one bundle.</p>
+      ${N.constellations ? `<div class="card"><h2>Co-mention of technology vocabularies within filings</h2>
+        <p class="sub">Pairs of vocabularies mentioned in the same filing more
+        often than expected by chance (lift of at least 1.5; Fisher exact test
+        with Bonferroni correction), by era.</p>
         <div class="stats">
           ${ERAS3.map(e => `<div class="stat${e === '2015-2025' ? ' accent' : ''}">
             <div class="v">${N.constellations.edges_per_era[e] || 0}</div>
-            <div class="k">significant pairings, ${e}</div></div>`).join('')}
+            <div class="k">significant pairs, ${e}</div></div>`).join('')}
         </div>
         <div id="nt-pairs"></div></div>` : ''}`);
 
@@ -755,8 +762,8 @@ ${lrHead && lrYear ? `
             return r ? r.retained * 100 : null;
           }),
         })),
-        ymax: 100, yFmt: v => v + '%', yLabel: 'Still mentioning it (%)',
-        tipFmt: (v, t) => `${t} yr after first mention: ${v.toFixed(0)}% still say it`,
+        ymax: 100, yFmt: v => v + '%', yLabel: 'Firms still mentioning (%)',
+        tipFmt: (v, t) => `${t} years after first mention: ${v.toFixed(0)}% of firms`,
       });
       Charts.barsH($('#nt-haz'), {
         labelW: 150,
@@ -765,9 +772,9 @@ ${lrHead && lrYear ? `
           .map(r => {
             const g = GROUPS.find(x => x[0] === r.group) || [r.group, r.group, '--ink'];
             return { label: g[1], value: r.odds_ratio, color: g[2],
-                     display: '×' + r.odds_ratio.toFixed(2),
-                     tip: `odds ×${r.odds_ratio.toFixed(2)} ` +
-                          `[${r.ci_lo.toFixed(2)}, ${r.ci_hi.toFixed(2)}] vs steady tools` };
+                     display: r.odds_ratio.toFixed(2),
+                     tip: `odds ratio ${r.odds_ratio.toFixed(2)} ` +
+                          `(${r.ci_lo.toFixed(2)} to ${r.ci_hi.toFixed(2)}) relative to steady tools` };
           }),
       });
     }
@@ -794,13 +801,13 @@ ${lrHead && lrYear ? `
     }
     if (N.constellations) {
       $('#nt-pairs').innerHTML =
-        '<p class="sub" style="margin-top:12px">The tightest pairings of each era:</p>' +
+        '<p class="sub" style="margin-top:12px">Pairs with the highest lift in each era:</p>' +
         ERAS3.map(e => {
           const ps = N.constellations.top_pairs.filter(p => p.era === e);
           return `<div class="m-sent"><div class="m-foot"><span><b>${e}</b></span>
             <span>${ps.map(p =>
-              `${D.adoption.labels[p.fam_a] || p.fam_a} + ${D.adoption.labels[p.fam_b] || p.fam_b}
-               (×${p.lift.toFixed(1)})`).join(' · ')}</span></div></div>`;
+              `${D.adoption.labels[p.fam_a] || p.fam_a} and ${D.adoption.labels[p.fam_b] || p.fam_b}
+               (lift ${p.lift.toFixed(1)})`).join('; ')}</span></div></div>`;
         }).join('');
     }
   }
@@ -818,18 +825,19 @@ ${lrHead && lrYear ? `
     host.innerHTML =
       `<div class="stats">` +
       `<div class="stat accent"><div class="v">${s.n_contexts_voted.toLocaleString('en-US')}</div>` +
-      `<div class="k">hit contexts judged by all three models</div></div>` +
+      `<div class="k">sampled term contexts coded by all three models</div></div>` +
       `<div class="stat"><div class="v">${fmtPct(s.mean_pairwise_agreement, 0)}</div>` +
-      `<div class="k">mean pairwise agreement between labs</div></div>` +
+      `<div class="k">mean pairwise agreement between the models</div></div>` +
       `<div class="stat risk"><div class="v">${s.demoted_to_llm.length}</div>` +
-      `<div class="k">families the check demoted out of the adoption measures</div></div>` +
+      `<div class="k">families excluded by the audit</div></div>` +
       `<div class="stat good"><div class="v">${s.promoted_to_lexicon.length}</div>` +
-      `<div class="k">noisy families that turned out clean</div></div>` +
+      `<div class="k">families flagged as noisy in advance that passed the audit</div></div>` +
       `</div>` +
       `<div class="card"><h2>Precision by family</h2>` +
-      `<p class="sub">Share of sampled hits the 2-of-3 vote judged true. The rule, ` +
-      `fixed before results: keyword tier needs ≥ 80% overall and ≥ 70% in ` +
-      `every era with 30+ hits.</p><div class="chart" id="ch-prec"></div></div>`;
+      `<p class="sub">Share of sampled contexts judged to denote the technology by a ` +
+      `two-of-three majority. Acceptance rule, set before the audit: at least 80% ` +
+      `overall and at least 70% in every era with 30 or more samples.</p>` +
+      `<div class="chart" id="ch-prec"></div></div>`;
 
     const rows = P.families.slice().sort((a, b) => a.precision - b.precision);
     Charts.barsH($('#ch-prec'), {
@@ -839,11 +847,12 @@ ${lrHead && lrYear ? `
         value: r.precision,
         color: r.tier_decision === 'lexicon' ? '--c2' : '--risk',
         display: fmtPct(r.precision, 0) +
-          (r.changed ? (r.tier_decision === 'llm' ? ' ↓ demoted' : ' ↑ promoted') : ''),
-        tip: `${r.n_sampled} contexts · ${fmtPct(r.pct_unanimous, 0)} unanimous · stays ${r.tier_decision}`,
+          (r.changed ? (r.tier_decision === 'llm' ? ' · demoted' : ' · promoted') : ''),
+        tip: `${r.n_sampled} contexts; ${fmtPct(r.pct_unanimous, 0)} unanimous; ` +
+             (r.tier_decision === 'lexicon' ? 'kept in the lexicon' : 'excluded from headline measures'),
       })),
-      legend: [{ name: 'kept: keyword-measured', color: '--c2' },
-               { name: 'excluded from the adoption measures', color: '--risk' }],
+      legend: [{ name: 'kept in the lexicon', color: '--c2' },
+               { name: 'excluded from headline measures', color: '--risk' }],
     });
   }
 
