@@ -487,13 +487,77 @@
     document.addEventListener('keydown', escClose);
   }
 
+  /* The industry picker: all nine industries at once, each with its size and
+     three familiar registrants (checked against the inventory), so the reader
+     sees that the grid covers thousands of firms beyond the one on screen.
+     While a search is typed, each button shows its number of matches. */
+  const EXAMPLES = {
+    'Construction': ['Fluor', 'Jacobs', 'MasTec'],
+    'Construction machinery': ['Caterpillar', 'Deere', 'Terex'],
+    'Auto manufacturing': ['Ford', 'General Motors', 'Tesla'],
+    'Software & IT services': ['Microsoft', 'Oracle', 'Alphabet'],
+    'Computers & chips': ['Apple', 'Intel', 'NVIDIA'],
+    'Pharma & biotech': ['Pfizer', 'Merck', 'Amgen'],
+    'Utilities': ['Southern Company', 'Exelon', 'NextEra Energy'],
+    'Retail': ['Kroger', "Macy's", 'CVS Health'],
+    'Aerospace & defense': ['Boeing', 'Northrop Grumman', 'L3Harris'],
+  };
+  const NUMWORD = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
+  const n0 = (v) => v.toLocaleString('en-US');
+
+  function buildPicker() {
+    const size = {};
+    D.inventory.firms.forEach(f => {
+      const s = size[f.industry] || (size[f.industry] = { firms: 0, filings: 0 });
+      s.firms += 1; s.filings += f.cells.length;
+    });
+    const avail = INDUSTRIES.filter(i => size[i]);
+    const filings = avail.reduce((a, i) => a + size[i].filings, 0);
+    $('#inv-summary').textContent =
+      `${n0(D.inventory.firms.length)} firms in ${NUMWORD[avail.length] || avail.length} ` +
+      `industries, ${n0(filings)} filings. Select an industry to list its firms, ` +
+      'or search all industries by firm name.';
+    $('#inv-picker').innerHTML = avail.map(i => {
+      const s = size[i], eg = EXAMPLES[i] || [];
+      const n = `${n0(s.firms)} firms · ${n0(s.filings)} filings`;
+      return `<button type="button" class="ind-chip" data-ind="${i}" aria-pressed="false"
+          style="--ind:${css(IND_COLOR[i])}">
+        <span class="ic-top"><span class="ic-name">${i}</span>
+          <span class="ic-n" data-n="${n}">${n}</span></span>
+        <span class="ic-eg">${eg.length
+          ? `${eg.join(', ')} and ${n0(s.firms - eg.length)} others` : ''}</span></button>`;
+    }).join('');
+    $('#inv-picker').addEventListener('click', (e) => {
+      const b = e.target.closest('.ind-chip'); if (!b) return;
+      INV.ind = b.dataset.ind; INV.q = '';
+      $('#inv-search').value = '';
+      const u = new URL(location.href);
+      u.searchParams.set('ind', INV.ind);
+      history.replaceState(null, '', u);
+      renderFilings();
+    });
+  }
+
+  function paintPicker() {
+    const hits = {};
+    if (INV.q) {
+      D.inventory.firms.forEach(f => {
+        if (f.name.toLowerCase().includes(INV.q)) hits[f.industry] = (hits[f.industry] || 0) + 1;
+      });
+    }
+    $$('#inv-picker .ind-chip').forEach(b => {
+      const ind = b.dataset.ind, on = !INV.q && ind === INV.ind, k = hits[ind] || 0;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.classList.toggle('dim', !!INV.q && !k);
+      const n = b.querySelector('.ic-n');
+      n.textContent = INV.q ? `${n0(k)} matching firm${k === 1 ? '' : 's'}` : n.dataset.n;
+    });
+  }
+
   function renderFilings() {
-    const sel = $('#inv-ind');
-    if (!sel.options.length) {
-      const avail = INDUSTRIES.filter(i => D.inventory.firms.some(f => f.industry === i));
-      sel.innerHTML = avail.map(i =>
-        `<option${i === INV.ind ? ' selected' : ''}>${i}</option>`).join('');
-      sel.addEventListener('change', () => { INV.ind = sel.value; renderFilings(); });
+    if (!$('#inv-picker').children.length) {
+      buildPicker();
       $('#inv-search').addEventListener('input', (e) => {
         INV.q = e.target.value.toLowerCase().trim(); renderFilings();
       });
@@ -519,12 +583,14 @@
         openReview(a);
       });
     }
-    sel.disabled = !!INV.q;
+    paintPicker();
 
     let firms = INV.q
       ? D.inventory.firms.filter(f => f.name.toLowerCase().includes(INV.q))
       : D.inventory.firms.filter(f => f.industry === INV.ind);
-    $('#inv-count').textContent = firms.length.toLocaleString('en-US') + ' firms';
+    $('#inv-count').textContent = INV.q
+      ? `${n0(firms.length)} matching firms in all industries`
+      : `${n0(firms.length)} firms, grouped by SIC code`;
 
     const years = D.inventory.years;
     const head = `<div class="inv-row inv-head"><span></span>` +

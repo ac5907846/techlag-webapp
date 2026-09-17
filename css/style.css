@@ -341,6 +341,36 @@ mark{background:color-mix(in srgb,var(--c3) 40%,transparent);color:inherit;
   .inv30 .inv-row{grid-template-columns:130px repeat(30,16px) 34px;min-width:660px}
 }
 
+/* ------------------------------------- industry picker (filing inventory) */
+.inv-summary{font-size:13.5px;color:var(--ink-2);margin:0 0 10px}
+.ind-picker{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 16px}
+.ind-chip{font:inherit;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:2px;
+  min-width:0;padding:8px 12px 9px;background:var(--surface);color:var(--ink);
+  border:1px solid var(--line-2);border-left:4px solid var(--ind);border-radius:var(--r-s);
+  transition:background .12s,border-color .12s}
+.ind-chip:hover{background:var(--surface-2);border-color:var(--ink-3);border-left-color:var(--ind)}
+.ind-chip:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.ind-chip.on{background:var(--accent-soft);border-color:var(--accent);border-left-color:var(--ind);
+  box-shadow:inset 0 0 0 1px var(--accent)}
+.ind-chip .ic-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;min-width:0}
+.ind-chip .ic-name{font-size:13.5px;font-weight:650;line-height:1.3;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ind-chip .ic-n{font-size:12px;color:var(--ink-2);line-height:1.3;white-space:nowrap;
+  font-variant-numeric:tabular-nums}
+.ind-chip .ic-eg{font-size:11.5px;color:var(--ink-3);line-height:1.35;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ind-chip.dim{background:var(--surface-2);color:var(--ink-3)}
+.ind-chip.dim .ic-n{color:var(--ink-3)}
+@media(max-width:1000px){.ind-picker{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){
+  .ind-chip{padding:7px 9px 8px}
+  .ind-chip .ic-top{flex-direction:column;align-items:flex-start;gap:0}
+  .ind-chip .ic-name,.ind-chip .ic-n{white-space:normal}
+  .ind-chip .ic-name{font-size:13px}
+  .ind-chip .ic-n{font-size:11.5px}
+  .ind-chip .ic-eg{display:none}
+}
+
 /* ------------------------------------------------ entry-matrix replay */
 .player{display:flex;align-items:center;gap:12px;margin:2px 0 4px}
 .player .play{font:inherit;font-size:13px;font-weight:600;color:var(--accent);

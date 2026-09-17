@@ -113,18 +113,16 @@
         One cell per company-year, fiscal 1996&ndash;2025, shaded by the
         number of technology vocabularies the filing mentions. Hovering over a
         cell lists the vocabularies; selecting it lists the first sentence of
-        each vocabulary in the filing, with links to the document on sec.gov.
-        For most construction and construction-machinery filings, the links
-        open the document at the sentence. Firms are grouped by SIC code
-        within each industry, and the search field covers all nine
-        industries.
+        each vocabulary, with links to the filing on sec.gov (for most
+        construction and construction-machinery filings, at the sentence).
       </p>
     </div>
     <div class="card">
+      <p class="inv-summary" id="inv-summary"></p>
+      <div class="ind-picker" id="inv-picker" role="group" aria-label="Industry"></div>
       <div class="toolbar">
         <input id="inv-search" type="search" placeholder="Search firms in all industries"
                aria-label="Search firms">
-        <select id="inv-ind" aria-label="Industry"></select>
         <span class="count" id="inv-count"></span>
       </div>
       <div class="legend inv-legend">
